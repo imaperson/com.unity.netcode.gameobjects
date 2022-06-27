@@ -8,6 +8,10 @@ namespace Unity.Netcode
     {
         [SerializeField]
         internal NetworkSimulatorConfiguration m_SimulatorConfiguration;
+        
+        INetworkEventsApi m_NetworkEventsApi;
+
+        internal INetworkEventsApi NetworkEventsApi => m_NetworkEventsApi ??= new NoOpNetworkEventsApi();
 
         public NetworkSimulatorConfiguration SimulatorConfiguration
         {
@@ -31,6 +35,12 @@ namespace Unity.Netcode
             {
                 transport.UpdateSimulationPipelineParameters(SimulatorConfiguration);
             }
+        }
+
+        void Start()
+        {
+            var unityTransport = GetComponent<UnityTransport>();
+            m_NetworkEventsApi = new NetworkEventsApi(this, unityTransport);
         }
     }
 }
