@@ -1,3 +1,5 @@
+using System;
+using System.Collections;
 using UnityEngine;
 
 namespace Unity.Netcode
@@ -16,20 +18,36 @@ namespace Unity.Netcode
             set => m_NetworkSimulatorScenario = value;
         }
 
-        public NetworkSimulator NetworkSimulatorSimulator => m_NetworkSimulator == null
+        NetworkSimulator NetworkSimulatorSimulator => m_NetworkSimulator == null
             ? m_NetworkSimulator = GetComponent<NetworkSimulator>()
             : m_NetworkSimulator;
 
-        void Start()
+        IEnumerator Start()
         {
-            NetworkSimulatorScenario?.Start(NetworkSimulatorSimulator.NetworkEventsApi);
+            if (NetworkSimulatorSimulator == null)
+            {
+                throw new ArgumentNullException($"{nameof(NetworkSimulatorSimulator)} cannot be null.");
+            }
+
+            if (NetworkSimulatorScenario == null)
+            {
+                Debug.LogWarning($"You need to select a valid {nameof(NetworkScenario)}.");
+                yield break;
+            }
+
+            while (NetworkSimulatorSimulator.IsInitialized == false)
+            {
+                yield return null;
+            }
+            
+            NetworkSimulatorScenario.Start(NetworkSimulatorSimulator.NetworkEventsApi);
         }
         
         void OnDestroy()
         {
             NetworkSimulatorScenario?.Dispose();
         }
-                
+        
         void Update()
         {
             if (NetworkSimulatorScenario is INetworkSimulatorScenarioUpdateHandler updatableSimulator)
