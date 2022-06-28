@@ -22,14 +22,18 @@ namespace Unity.Netcode.Editor
         SliderInt PacketLossPercentSlider => this.Q<SliderInt>(nameof(PacketLossPercentSlider));
         SliderInt PacketDuplicationPercentSlider => this.Q<SliderInt>(nameof(PacketDuplicationPercentSlider));
 
-        readonly SerializedProperty m_SerializedProperty;
+        readonly SerializedObject m_SerializedObject;
+        readonly SerializedProperty m_ConfigurationObject;
+        readonly SerializedProperty m_ConfigurationReference;
         bool m_CustomSelected;
 
-        public NetworkTypeView(SerializedProperty serializedProperty, NetworkSimulator networkSimulator)
+        public NetworkTypeView(SerializedObject serializedObject, NetworkSimulator networkSimulator)
         {
             m_NetworkSimulator = networkSimulator;
-            m_SerializedProperty = serializedProperty;
-            m_SerializedProperty.serializedObject.Update();
+            m_SerializedObject = serializedObject;
+            m_ConfigurationObject = m_SerializedObject.FindProperty(nameof(NetworkSimulator.m_ConfigurationObject));
+            m_ConfigurationReference = m_SerializedObject.FindProperty(nameof(NetworkSimulator.m_ConfigurationReference));
+            m_SerializedObject.Update();
 
             Undo.undoRedoPerformed += UndoRedoPerformed;
             m_NetworkSimulator.PropertyChanged += NetworkSimulatorOnPropertyChanged;
@@ -44,11 +48,11 @@ namespace Unity.Netcode.Editor
 
             UpdatePresetDropdown();
             PresetDropdown.RegisterCallback<ChangeEvent<string>>(OnPresetSelected);
-            CustomPresetValue.objectType = typeof(NetworkSimulatorConfiguration);
+            CustomPresetValue.objectType = typeof(INetworkSimulatorConfiguration);
 
-            if (HasCustomValue)
+            if (HasCustomValue && m_NetworkSimulator.SimulatorConfiguration is Object configurationObject)
             {
-                CustomPresetValue.value = m_NetworkSimulator.SimulatorConfiguration;
+                CustomPresetValue.value = configurationObject;
             }
 
             CustomPresetValue.RegisterCallback<ChangeEvent<Object>>(OnCustomPresetChanged);
@@ -76,6 +80,7 @@ namespace Unity.Netcode.Editor
         void NetworkSimulatorOnPropertyChanged(object sender, PropertyChangedEventArgs _)
         {
             UpdatePresetDropdown();
+            UpdateSliders(m_NetworkSimulator.SimulatorConfiguration);
         }
 
         void UpdatePresetDropdown()
@@ -132,15 +137,13 @@ namespace Unity.Netcode.Editor
 
         void OnCustomPresetChanged(ChangeEvent<Object> evt)
         {
-            var configuration = evt.newValue as NetworkSimulatorConfiguration;
+            var configuration = evt.newValue as INetworkSimulatorConfiguration;
             SetSimulatorConfiguration(configuration);
-
             UpdateEnabled();
-
             UpdateSliders(m_NetworkSimulator.SimulatorConfiguration);
         }
 
-        void UpdateSliders(NetworkSimulatorConfiguration configuration)
+        void UpdateSliders(INetworkSimulatorConfiguration configuration)
         {
             UpdatePacketDelay(configuration.PacketDelayMs);
             UpdatePacketJitter(configuration.PacketJitterMs);
@@ -202,10 +205,17 @@ namespace Unity.Netcode.Editor
             }
         }
 
-        void SetSimulatorConfiguration(NetworkSimulatorConfiguration configuration)
+        void SetSimulatorConfiguration(INetworkSimulatorConfiguration configuration)
         {
-            m_SerializedProperty.objectReferenceValue = configuration;
-            m_SerializedProperty.serializedObject.ApplyModifiedProperties();
+            if (configuration is Object configurationObject)
+            {
+                m_ConfigurationObject.objectReferenceValue = configurationObject;
+            }
+            else
+            {
+                m_ConfigurationReference.managedReferenceValue = configuration;
+            }
+            m_SerializedObject.ApplyModifiedProperties();
         }
     }
 }

@@ -9,9 +9,12 @@ namespace Unity.Netcode
     public class NetworkSimulator : MonoBehaviour, INotifyPropertyChanged
     {
         public event PropertyChangedEventHandler PropertyChanged;
-        
-        [SerializeField]
-        internal NetworkSimulatorConfiguration m_SimulatorConfiguration;
+
+        [SerializeField, HideInInspector]
+        internal Object m_ConfigurationObject;
+
+        [SerializeReference, HideInInspector]
+        internal INetworkSimulatorConfiguration m_ConfigurationReference;
         
         INetworkEventsApi m_NetworkEventsApi;
 
@@ -19,12 +22,20 @@ namespace Unity.Netcode
         
         internal bool IsInitialized { get; private set; }
 
-        public NetworkSimulatorConfiguration SimulatorConfiguration
+        public INetworkSimulatorConfiguration SimulatorConfiguration
         {
-            get => m_SimulatorConfiguration;
+            get => m_ConfigurationReference ?? m_ConfigurationObject as INetworkSimulatorConfiguration;
             set
             {
-                m_SimulatorConfiguration = value;
+                if (value is Object networkTypeConfigurationObject)
+                {
+                    m_ConfigurationObject = networkTypeConfigurationObject;
+                }
+                else
+                {
+                    m_ConfigurationReference = value;
+                }
+                
                 UpdateLiveParameters();
                 OnPropertyChanged();
             }

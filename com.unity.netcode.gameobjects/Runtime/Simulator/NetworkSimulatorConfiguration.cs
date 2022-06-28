@@ -5,7 +5,7 @@ namespace Unity.Netcode
     [CreateAssetMenu(
         fileName = nameof(NetworkSimulatorConfiguration),
         menuName = "Multiplayer/" + nameof(NetworkSimulatorConfiguration))]
-    public class NetworkSimulatorConfiguration : ScriptableObject
+    public class NetworkSimulatorConfiguration : ScriptableObject, INetworkSimulatorConfiguration
     {
         /// <summary>
         /// Network simulation configuration name.
