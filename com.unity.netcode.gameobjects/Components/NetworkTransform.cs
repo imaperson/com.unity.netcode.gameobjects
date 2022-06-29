@@ -864,7 +864,8 @@ namespace Unity.Netcode.Components
             interpolator.Update(deltaTime, renderTime, serverTime);
             float endingValue = interpolator.GetInterpolatedValue();
             float delta = endingValue - startingValue;
-            int primingTicks = 30;
+            // Tried to make it carry over the momentum, but failed so far, just reset
+            int primingTicks = 1;
             interpolator.ResetTo(newPoint - delta*primingTicks, serverTime - deltaTime*primingTicks);
             for(int t = primingTicks-1; t > 0; --t)
             {
