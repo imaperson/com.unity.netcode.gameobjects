@@ -631,6 +631,29 @@ namespace Unity.Netcode.Components
                 interpolatedPosition.z = networkState.IsTeleportingNextFrame || !Interpolate ? networkState.Position.z : m_PositionZInterpolator.GetInterpolatedValue();
             }
 
+            // This should not be required if/when all teleport calls arrive
+            if (Vector3.Distance(interpolatedPosition, networkState.Position) > 25)
+            {
+                Debug.Log("Interpolated position " + interpolatedPosition + " is very far from network position "+ networkState.Position + " teleporting? " + networkState.IsTeleportingNextFrame);
+
+                HandleTeleportingState(networkState);
+
+                if (SyncPositionX)
+                {
+                    interpolatedPosition.x = networkState.IsTeleportingNextFrame || !Interpolate ? networkState.Position.x : m_PositionXInterpolator.GetInterpolatedValue();
+                }
+
+                if (SyncPositionY)
+                {
+                    interpolatedPosition.y = networkState.IsTeleportingNextFrame || !Interpolate ? networkState.Position.y : m_PositionYInterpolator.GetInterpolatedValue();
+                }
+
+                if (SyncPositionZ)
+                {
+                    interpolatedPosition.z = networkState.IsTeleportingNextFrame || !Interpolate ? networkState.Position.z : m_PositionZInterpolator.GetInterpolatedValue();
+                }
+            }
+
             // again, we should be using quats here
             if (SyncRotAngleX || SyncRotAngleY || SyncRotAngleZ)
             {
@@ -793,13 +816,59 @@ namespace Unity.Netcode.Components
 
             if (Interpolate)
             {
-                AddInterpolatedState(newState, (newState.InLocalSpace != m_LastInterpolateLocal));
+                if (oldState.IsTeleportingNextFrame)
+                {
+                    Debug.Log("Teleporting last frame state change received with position " + oldState.Position);
+                }
+                if (newState.IsTeleportingNextFrame)
+                {
+                    Debug.Log("Teleporting next frame state change received with position " + newState.Position);
+                }
+                if (oldState.IsTeleportingNextFrame || newState.IsTeleportingNextFrame)
+                {
+                    HandleTeleportingState(newState);
+                }
+
+                AddInterpolatedState(newState, (newState.InLocalSpace != m_LastInterpolateLocal));// || oldState.IsTeleportingNextFrame || newState.IsTeleportingNextFrame);
             }
             m_LastInterpolateLocal = newState.InLocalSpace;
 
             if (m_CachedNetworkManager.LogLevel == LogLevel.Developer)
             {
                 var pos = new Vector3(newState.PositionX, newState.PositionY, newState.PositionZ);
+            }
+        }
+
+        private void HandleTeleportingState(NetworkTransformState newState)
+        {
+            // Adjust the interpolation buffers to carry through momentum visually
+            var cachedDeltaTime = Time.deltaTime;
+            var serverTime = NetworkManager.ServerTime;
+            var cachedServerTime = serverTime.Time;
+            var cachedRenderTime = serverTime.TimeTicksAgo(1).Time;
+
+            ResetAndPrimeInterpolator(m_PositionXInterpolator, newState.PositionX, cachedDeltaTime, cachedRenderTime, cachedServerTime);
+            ResetAndPrimeInterpolator(m_PositionYInterpolator, newState.PositionY, cachedDeltaTime, cachedRenderTime, cachedServerTime);
+            ResetAndPrimeInterpolator(m_PositionZInterpolator, newState.PositionZ, cachedDeltaTime, cachedRenderTime, cachedServerTime);
+            ResetAndPrimeInterpolator(m_ScaleXInterpolator, newState.ScaleX, cachedDeltaTime, cachedRenderTime, cachedServerTime);
+            ResetAndPrimeInterpolator(m_ScaleYInterpolator, newState.ScaleY, cachedDeltaTime, cachedRenderTime, cachedServerTime);
+            ResetAndPrimeInterpolator(m_ScaleZInterpolator, newState.ScaleZ, cachedDeltaTime, cachedRenderTime, cachedServerTime);
+
+            // TODO: Reset the rotation on
+            //m_RotationInterpolator
+        }
+
+        private void ResetAndPrimeInterpolator(BufferedLinearInterpolator<float> interpolator, float newPoint, float deltaTime, double renderTime, double serverTime)
+        {
+            float startingValue = interpolator.GetInterpolatedValue();
+            interpolator.Update(deltaTime, renderTime, serverTime);
+            float endingValue = interpolator.GetInterpolatedValue();
+            float delta = endingValue - startingValue;
+            int primingTicks = 30;
+            interpolator.ResetTo(newPoint - delta*primingTicks, serverTime - deltaTime*primingTicks);
+            for(int t = primingTicks-1; t > 0; --t)
+            {
+                interpolator.AddMeasurement(newPoint - delta * t, serverTime - deltaTime * t);
             }
         }
 
@@ -1042,7 +1111,7 @@ namespace Unity.Netcode.Components
             m_LocalAuthoritativeNetworkState.IsTeleportingNextFrame = true;
             // check server side
             TryCommitValuesToServer(newPosition, newRotationEuler, newScale, m_CachedNetworkManager.LocalTime.Time);
-            m_LocalAuthoritativeNetworkState.IsTeleportingNextFrame = false;
+            //m_LocalAuthoritativeNetworkState.IsTeleportingNextFrame = false;
         }
 
         /// <summary>
